@@ -1,0 +1,40 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+{% load admin_static %}
+{% load admin_urls %}
+
+{% block extrastyle %}
+<link rel="stylesheet" href="{% static 'admin/css/forms.css' %}">
+{% include "admin/inc/extrastyle.html" %}
+{% endblock %}
+
+{% block content %}
+<div id="content-main">
+    <h1>Import todo list template from a Google Sheet</h1>
+
+    <form action="{{request.path}}" method="post" id="churn_form">
+        {% csrf_token %}
+        <div id="form_{{ form.form_id }}" class="churn-form">
+          {% for field in form %}
+          <div class="aligned">
+            <div class="form-row" id="{{ field.id_for_label }}_row">
+              <div {% if field.errors %}class="field_error"{% endif %}>
+                <span>{{ field.label_tag }}</span>
+                <div class="field">
+                  {{ field }}
+                  <wbr>
+                  <div class="help-text">{{ field.help_text }}</div>
+                  {% for err in field.errors %}
+                  <span class="error_message">{{ err }}</span>
+                  {% endfor %}
+                </div>
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        <input type="submit" value="Submit" id="form_submit" />
+    </form>
+
+</div>
+{% endblock %}

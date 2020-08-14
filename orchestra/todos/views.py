@@ -1,5 +1,11 @@
 import logging
 
+from django.contrib.admin.views.decorators import staff_member_required
+from django.http import HttpResponseBadRequest
+from django.shortcuts import redirect
+from django.shortcuts import render
+from django.utils.decorators import method_decorator
+from django.views.generic import View
 from rest_framework import generics
 from rest_framework import permissions
 from rest_framework.response import Response
@@ -10,6 +16,7 @@ from orchestra.models import Todo
 from orchestra.models import TodoQA
 from orchestra.models import TodoListTemplate
 from orchestra.models import Worker
+from orchestra.todos.forms import ImportTodoListTemplateFromSpreadsheetForm
 from orchestra.todos.serializers import TodoSerializer
 from orchestra.todos.serializers import TodoWithQASerializer
 from orchestra.todos.serializers import TodoQASerializer
@@ -20,6 +27,7 @@ from orchestra.utils.decorators import api_endpoint
 from orchestra.todos.auth import IsAssociatedWithTodosProject
 from orchestra.todos.auth import IsAssociatedWithProject
 from orchestra.todos.auth import IsAssociatedWithTask
+from orchestra.todos.import_export import import_from_spreadsheet
 
 logger = logging.getLogger(__name__)
 
@@ -76,6 +84,29 @@ def worker_task_recent_todo_qas(request):
     todos_recommendation = {todo_qa.todo.title: TodoQASerializer(
         todo_qa).data for todo_qa in todo_qas}
     return Response(todos_recommendation)
+
+
+@method_decorator(staff_member_required, name='dispatch')
+class ImportTodoListTemplateFromSpreadsheet(View):
+
+    def get(self, request, pk):
+        return render(
+            request,
+            'orchestra/import_todo_list_template_from_spreadsheet.html',
+            {'form': ImportTodoListTemplateFromSpreadsheetForm(initial={})})
+
+    def post(self, request, pk):
+        form = ImportTodoListTemplateFromSpreadsheetForm(request.POST)
+        if form.is_valid():
+            todo_list_template = TodoListTemplate.objects.get(
+                id=pk)
+            import_from_spreadsheet(
+                todo_list_template, form.cleaned_data['spreadsheet_url'])
+            return redirect(
+                'admin:orchestra_todolisttemplate_change',
+                pk)
+        else:
+            return HttpResponseBadRequest('Provide a spreadsheet')
 
 
 class TodoList(generics.ListCreateAPIView):

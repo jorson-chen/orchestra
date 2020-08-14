@@ -70,6 +70,7 @@ def add_image(service, folder_id, url):
                                        'image',
                                        folder_id,
                                        mimetype,
+                                       mimetype,
                                        temp.name)
     os.unlink(temp.name)
     return google_image
@@ -216,6 +217,7 @@ def upload_file(parent_id, file_path, title, description, mimetype):
         title,
         description,
         parent_id,
+        mimetype,
         mimetype,
         file_path
     )

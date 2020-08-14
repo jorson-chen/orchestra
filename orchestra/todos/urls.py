@@ -29,4 +29,7 @@ urlpatterns = [
     url(r'^worker_task_recent_todo_qas/$',
         views.worker_task_recent_todo_qas,
         name='worker_task_recent_todo_qas'),
+    url(r'^import_todo_list_template_from_spreadsheet/(?P<pk>[0-9]+)/$',
+        views.ImportTodoListTemplateFromSpreadsheet.as_view(),
+        name='import_todo_list_template_from_spreadsheet'),
 ]

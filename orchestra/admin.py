@@ -4,8 +4,11 @@ from bitfield import BitField
 from bitfield.admin import BitFieldListFilter
 from bitfield.forms import BitFieldCheckboxSelectMultiple
 from django.contrib import admin
+from django.http import HttpResponseRedirect
+from django.shortcuts import redirect
 from django.urls import reverse
 from django.utils.html import format_html
+from django_object_actions import DjangoObjectActions
 from phonenumber_field.modelfields import PhoneNumberField
 from phonenumber_field.widgets import PhoneNumberPrefixWidget
 from related_admin import RelatedFieldAdmin
@@ -31,6 +34,7 @@ from orchestra.models import Worker
 from orchestra.models import WorkerCertification
 from orchestra.models import Workflow
 from orchestra.models import WorkflowVersion
+from orchestra.todos.import_export import export_to_spreadsheet
 
 admin.site.site_header = 'Orchestra'
 admin.site.site_title = 'Orchestra'
@@ -193,7 +197,8 @@ class TodoQAAdmin(AjaxSelectAdmin):
 
 
 @admin.register(TodoListTemplate)
-class TodoListTemplateAdmin(AjaxSelectAdmin):
+class TodoListTemplateAdmin(DjangoObjectActions, AjaxSelectAdmin):
+    change_actions = ('export_spreadsheet', 'import_spreadsheet')
     form = make_ajax_form(TodoListTemplate, {
         'creator': 'workers',
     })
@@ -203,6 +208,18 @@ class TodoListTemplateAdmin(AjaxSelectAdmin):
         'slug', 'name', 'todos',
         'description')
     list_filter = ('creator__user__username',)
+
+    def export_spreadsheet(self, request, todo_list_template):
+        return HttpResponseRedirect(export_to_spreadsheet(todo_list_template))
+    export_spreadsheet.short_description = 'Export to spreadsheet'
+    export_spreadsheet.label = 'Export to spreadsheet'
+
+    def import_spreadsheet(self, request, todo_list_template):
+        return redirect(
+            'orchestra:todos:import_todo_list_template_from_spreadsheet',
+            pk=todo_list_template.id)
+    import_spreadsheet.short_description = 'Import from spreadsheet'
+    import_spreadsheet.label = 'Import from spreadsheet'
 
 
 @admin.register(Worker)
