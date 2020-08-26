@@ -225,6 +225,7 @@ class TodoListTemplateAdmin(DjangoObjectActions, AjaxSelectAdmin):
 
     def export_spreadsheet(self, request, todo_list_template):
         return HttpResponseRedirect(export_to_spreadsheet(todo_list_template))
+    export_spreadsheet.attrs = {'target': '_blank'}
     export_spreadsheet.short_description = 'Export to spreadsheet'
     export_spreadsheet.label = 'Export to spreadsheet'
 
