@@ -30,6 +30,7 @@ from orchestra.models import TimeEntry
 from orchestra.models import Todo
 from orchestra.models import TodoQA
 from orchestra.models import TodoListTemplate
+from orchestra.models import TodoListTemplateImportRecord
 from orchestra.models import Worker
 from orchestra.models import WorkerCertification
 from orchestra.models import Workflow
@@ -194,6 +195,19 @@ class TodoQAAdmin(AjaxSelectAdmin):
     list_display = ('id', 'created_at', 'todo', 'comment', 'approved')
     ordering = ('-created_at',)
     search_fields = ('todo__title', 'comment',)
+
+
+@admin.register(TodoListTemplateImportRecord)
+class TodoListTemplateImportRecordAdmin(AjaxSelectAdmin):
+    list_display = ('id', 'created_at', 'todo_list_template', 'importer')
+    list_filter = ('todo_list_template',)
+    search_fields = (
+        'todo_list_template__slug',
+        'todo_list_template__name',
+        'todo_list_template__description',
+        'import_url'
+    )
+    ordering = ('-created_at',)
 
 
 @admin.register(TodoListTemplate)

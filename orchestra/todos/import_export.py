@@ -2,6 +2,7 @@ import csv
 import json
 
 from django.conf import settings
+from django.db import transaction
 from django.utils import timezone
 from tempfile import NamedTemporaryFile
 
@@ -9,10 +10,12 @@ from orchestra.core.errors import SpreadsheetImportError
 from orchestra.google_apps.permissions import write_with_link_permission
 from orchestra.google_apps.service import Service
 from orchestra.google_apps.convenience import get_google_spreadsheet_as_csv
+from orchestra.models import TodoListTemplateImportRecord
 
 
 REMOVE_IF_HEADER = 'Remove if'
 SKIP_IF_HEADER = 'Skip if'
+
 
 def _write_template_rows(writer, todo, depth):
     writer.writerow(
@@ -43,7 +46,7 @@ def export_to_spreadsheet(todo_list_template):
         return 'https://docs.google.com/spreadsheets/d/{}'.format(sheet['id'])
 
 
-def import_from_spreadsheet(todo_list_template, spreadsheet_url):
+def import_from_spreadsheet(todo_list_template, spreadsheet_url, request):
     reader = get_google_spreadsheet_as_csv(spreadsheet_url, reader=csv.reader)
     header = next(reader)
     if header[:2] != [REMOVE_IF_HEADER, SKIP_IF_HEADER]:
@@ -82,5 +85,9 @@ def import_from_spreadsheet(todo_list_template, spreadsheet_url):
         parent_items.append(item['items'])
 
     todo_list_template.todos = todos
-    # todo_list_template.import_history.append(spreadsheet_url)
-    todo_list_template.save()
+    with transaction.atomic():
+        todo_list_template.save()
+        TodoListTemplateImportRecord.objects.create(
+            import_url=spreadsheet_url,
+            todo_list_template=todo_list_template,
+            importer=request.user)

@@ -101,7 +101,9 @@ class ImportTodoListTemplateFromSpreadsheet(View):
             todo_list_template = TodoListTemplate.objects.get(
                 id=pk)
             import_from_spreadsheet(
-                todo_list_template, form.cleaned_data['spreadsheet_url'])
+                todo_list_template,
+                form.cleaned_data['spreadsheet_url'],
+                request)
             return redirect(
                 'admin:orchestra_todolisttemplate_change',
                 pk)
