@@ -1,8 +1,10 @@
+import csv
 import json
 
 from django.utils import timezone
 from dateutil.parser import parse
 from django.urls import reverse
+from unittest.mock import patch
 
 from orchestra.models import Task
 from orchestra.models import Todo
@@ -20,6 +22,17 @@ from orchestra.todos.serializers import TodoSerializer
 from orchestra.todos.serializers import TodoQASerializer
 from orchestra.todos.serializers import TodoListTemplateSerializer
 from orchestra.utils.load_json import load_encoded_json
+
+
+CSV_TEXT = """Remove if,Skip if
+[],[],the root
+[],[],,todo parent 1
+[],"[{""prop"": {""value"": true, ""operator"": ""==""}}]",,,todo child 1-1
+"[{""prop"": {""value"": true, ""operator"": ""==""}}]",[],,todo parent 2
+[],[],,,todo child 2-1
+[],[],,,,todo child 2-1-1
+[],[],,,todo child 2-2
+"""
 
 
 def _todo_data(task, title, completed,
@@ -602,3 +615,101 @@ class TodoTemplateEndpointTests(EndpointTestCase):
         ]
         for todo, expected_todo in zip(todos, expected_todos):
             self._verify_todo_content(todo, expected_todo)
+
+
+class TodoListTemplatesImportExportTests(EndpointTestCase):
+
+    def setUp(self):
+        super().setUp()
+        setup_models(self)
+        self.worker = Worker.objects.get(user__username='test_user_6')
+        self.worker.user.is_staff = True
+        self.worker.user.save()
+        self.request_client.login(username=self.worker.user.username,
+                                  password='defaultpassword')
+        # Object actions don't appear to have a `reverse` pattern, so
+        # we explicitly spell out the URL.
+        self.export_url = (
+            '/vip/orchestra/todolisttemplate/{}/actions/export_spreadsheet/')
+
+    @patch('orchestra.todos.import_export._upload_csv_to_google')
+    def test_export_spreadsheet(self, mock_upload):
+        mock_upload.return_value = 'https://redirect.com/the_spreadsheet'
+
+        todo_list_template = TodoListTemplateFactory(
+            slug='template-slug',
+            name='Template name',
+            description='Template description',
+            conditional_property_function={
+                'path': 'orchestra.tests.test_todos'
+                        '._get_test_conditional_props'
+            },
+            todos={
+                'description': 'the root',
+                'items': [
+                    {
+                        'id': 2,
+                        'description': 'todo parent 2',
+                        'items': [
+                            {
+                                'id': 22,
+                                'description': 'todo child 2-2',
+                                'items': []
+                            },
+                            {
+                                'id': 21,
+                                'description': 'todo child 2-1',
+                                'items': [
+                                    {
+                                        'id': 211,
+                                        'description': 'todo child 2-1-1',
+                                        'items': []
+                                    }
+                                ]
+                            }
+                        ],
+                        'remove_if': [{
+                            'prop': {
+                                'operator': '==',
+                                'value': True
+                            }
+                        }]
+                    },
+                    {
+                        'id': 1,
+                        'description': 'todo parent 1',
+                        'items': [{
+                            'id': 11,
+                            'description': 'todo child 1-1',
+                            'items': [],
+                            'skip_if': [{
+                                'prop': {
+                                    'operator': '==',
+                                    'value': True
+                                }
+                            }]
+                        }]
+                    }]},
+        )
+
+        response = self.request_client.get(
+            self.export_url.format(todo_list_template.id))
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, 'https://redirect.com/the_spreadsheet')
+        self.assertEqual(mock_upload.call_count, 1)
+        self.assertEqual(
+            mock_upload.call_args[0][0][:len(todo_list_template.name) + 2],
+            '{} -'.format(todo_list_template.name))
+        with open(mock_upload.call_args[0][1].name, 'r') as exported_file:
+            lines = ''.join(exported_file.readlines())
+            # The JSON encoding of properties is indeterministic in order.
+            lines = lines.replace(
+                '"[{""prop"": {""operator"": ""=="", ""value"": true}}]"',
+                'PROPREPLACED')
+            lines = lines.replace(
+                '"[{""prop"": {""value"": true, ""operator"": ""==""}}]"',
+                'PROPREPLACED')
+            correct_text = CSV_TEXT.replace(
+                '"[{""prop"": {""value"": true, ""operator"": ""==""}}]"',
+                'PROPREPLACED')
+            self.assertEqual(lines, correct_text)

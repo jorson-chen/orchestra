@@ -19,11 +19,27 @@ SKIP_IF_HEADER = 'Skip if'
 
 def _write_template_rows(writer, todo, depth):
     writer.writerow(
-        [todo['remove_if'], todo['skip_if']] +
+        [json.dumps(todo.get('remove_if', [])),
+         json.dumps(todo.get('skip_if', []))] +
         ([''] * depth) +
-        [todo['description']])
+        [todo.get('description', '')])
     for child in reversed(todo.get('items', [])):
         _write_template_rows(writer, child, depth + 1)
+
+
+def _upload_csv_to_google(spreadsheet_name, file):
+    service = Service(settings.GOOGLE_P12_PATH,
+                      settings.GOOGLE_SERVICE_EMAIL)
+    sheet = service.insert_file(
+        spreadsheet_name,
+        '',
+        settings.ORCHESTRA_TODO_LIST_TEMPLATE_EXPORT_GDRIVE_FOLDER,
+        'text/csv',
+        'application/vnd.google-apps.spreadsheet',
+        file.name
+    )
+    service.add_permission(sheet['id'], write_with_link_permission)
+    return 'https://docs.google.com/spreadsheets/d/{}'.format(sheet['id'])
 
 
 def export_to_spreadsheet(todo_list_template):
@@ -32,18 +48,9 @@ def export_to_spreadsheet(todo_list_template):
         writer.writerow([REMOVE_IF_HEADER, SKIP_IF_HEADER])
         _write_template_rows(writer, todo_list_template.todos, 0)
         file.flush()
-        service = Service(settings.GOOGLE_P12_PATH,
-                          settings.GOOGLE_SERVICE_EMAIL)
-        sheet = service.insert_file(
-            '{} - {}'.format(todo_list_template.description, timezone.now()),
-            '',
-            settings.ORCHESTRA_TODO_LIST_TEMPLATE_EXPORT_GDRIVE_FOLDER,
-            'text/csv',
-            'application/vnd.google-apps.spreadsheet',
-            file.name
-        )
-        service.add_permission(sheet['id'], write_with_link_permission)
-        return 'https://docs.google.com/spreadsheets/d/{}'.format(sheet['id'])
+        return _upload_csv_to_google(
+            '{} - {}'.format(todo_list_template.name, timezone.now()),
+            file)
 
 
 def import_from_spreadsheet(todo_list_template, spreadsheet_url, request):
