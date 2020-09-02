@@ -33,6 +33,13 @@
           </div>
           {% endfor %}
         </div>
+
+        {% if import_error %}
+        <div class="error_message">
+          Error: {{ import_error }}
+        </div>
+        {% endif %}
+
         <input type="submit" value="Submit" id="form_submit" />
     </form>
 

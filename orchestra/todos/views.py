@@ -11,6 +11,7 @@ from rest_framework import permissions
 from rest_framework.response import Response
 from jsonview.exceptions import BadRequest
 
+from orchestra.core.errors import SpreadsheetImportError
 from orchestra.models import Task
 from orchestra.models import Todo
 from orchestra.models import TodoQA
@@ -88,25 +89,32 @@ def worker_task_recent_todo_qas(request):
 
 @method_decorator(staff_member_required, name='dispatch')
 class ImportTodoListTemplateFromSpreadsheet(View):
+    TEMPLATE = 'orchestra/import_todo_list_template_from_spreadsheet.html'
 
     def get(self, request, pk):
         return render(
             request,
-            'orchestra/import_todo_list_template_from_spreadsheet.html',
+            self.TEMPLATE,
             {'form': ImportTodoListTemplateFromSpreadsheetForm(initial={})})
 
     def post(self, request, pk):
         form = ImportTodoListTemplateFromSpreadsheetForm(request.POST)
         if form.is_valid():
-            todo_list_template = TodoListTemplate.objects.get(
-                id=pk)
-            import_from_spreadsheet(
-                todo_list_template,
-                form.cleaned_data['spreadsheet_url'],
-                request)
-            return redirect(
-                'admin:orchestra_todolisttemplate_change',
-                pk)
+            try:
+                todo_list_template = TodoListTemplate.objects.get(
+                    id=pk)
+                import_from_spreadsheet(
+                    todo_list_template,
+                    form.cleaned_data['spreadsheet_url'],
+                    request)
+                return redirect(
+                    'admin:orchestra_todolisttemplate_change',
+                    pk)
+            except SpreadsheetImportError as e:
+                return render(
+                    request,
+                    self.TEMPLATE,
+                    {'form': form, 'import_error': str(e)})
         else:
             return HttpResponseBadRequest('Provide a spreadsheet')
 
