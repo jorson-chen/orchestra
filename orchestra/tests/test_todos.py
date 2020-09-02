@@ -1,9 +1,11 @@
+import copy
 import csv
 import json
 
 from django.utils import timezone
 from dateutil.parser import parse
 from django.urls import reverse
+from io import StringIO
 from unittest.mock import patch
 
 from orchestra.models import Task
@@ -627,25 +629,17 @@ class TodoListTemplatesImportExportTests(EndpointTestCase):
         self.worker.user.save()
         self.request_client.login(username=self.worker.user.username,
                                   password='defaultpassword')
-        # Object actions don't appear to have a `reverse` pattern, so
-        # we explicitly spell out the URL.
-        self.export_url = (
-            '/vip/orchestra/todolisttemplate/{}/actions/export_spreadsheet/')
-
-    @patch('orchestra.todos.import_export._upload_csv_to_google')
-    def test_export_spreadsheet(self, mock_upload):
-        mock_upload.return_value = 'https://redirect.com/the_spreadsheet'
-
-        todo_list_template = TodoListTemplateFactory(
-            slug='template-slug',
-            name='Template name',
-            description='Template description',
+        self.full_todo_list_template = TodoListTemplateFactory(
+            slug='full-template-slug',
+            name='Full template name',
+            description='Full template description',
             conditional_property_function={
                 'path': 'orchestra.tests.test_todos'
                         '._get_test_conditional_props'
             },
             todos={
                 'description': 'the root',
+                'id': 0,
                 'items': [
                     {
                         'id': 2,
@@ -691,15 +685,38 @@ class TodoListTemplatesImportExportTests(EndpointTestCase):
                         }]
                     }]},
         )
+        self.empty_todo_list_template = TodoListTemplateFactory(
+            slug='empty-template-slug',
+            name='Empty template name',
+            description='Empty template description',
+            conditional_property_function={
+                'path': 'orchestra.tests.test_todos'
+                        '._get_test_conditional_props'
+            },
+            todos={}
+        )
 
+        self.import_url_name = (
+            'orchestra:todos:import_todo_list_template_from_spreadsheet')
+        self.template_admin_name = 'admin:orchestra_todolisttemplate_change'
+        # Object actions don't appear to have a `reverse` pattern, so
+        # we explicitly spell out the URL.
+        self.export_url_pattern = (
+            '/vip/orchestra/todolisttemplate/{}/actions/export_spreadsheet/')
+
+    @patch('orchestra.todos.import_export._upload_csv_to_google')
+    def test_export_spreadsheet(self, mock_upload):
+        mock_upload.return_value = 'https://redirect.com/the_spreadsheet'
         response = self.request_client.get(
-            self.export_url.format(todo_list_template.id))
+            self.export_url_pattern.format(self.full_todo_list_template.id))
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response.url, 'https://redirect.com/the_spreadsheet')
         self.assertEqual(mock_upload.call_count, 1)
+        title_prefix = (mock_upload.call_args[0][0]
+                        [:len(self.full_todo_list_template.name) + 2])
         self.assertEqual(
-            mock_upload.call_args[0][0][:len(todo_list_template.name) + 2],
-            '{} -'.format(todo_list_template.name))
+            title_prefix,
+            '{} -'.format(self.full_todo_list_template.name))
         with open(mock_upload.call_args[0][1].name, 'r') as exported_file:
             lines = ''.join(exported_file.readlines())
             # The JSON encoding of properties is indeterministic in order.
@@ -713,3 +730,63 @@ class TodoListTemplatesImportExportTests(EndpointTestCase):
                 '"[{""prop"": {""value"": true, ""operator"": ""==""}}]"',
                 'PROPREPLACED')
             self.assertEqual(lines, correct_text)
+
+    @patch('orchestra.todos.import_export.get_google_spreadsheet_as_csv')
+    def test_import_spreadsheet(self, mock_get_spreadsheet):
+        def fake_get_spreadsheet(spreadsheet_url, reader):
+            return reader(
+                StringIO(CSV_TEXT), dialect=csv.excel)
+        mock_get_spreadsheet.side_effect = fake_get_spreadsheet
+
+        import_url = reverse(
+            self.import_url_name,
+            kwargs={'pk': self.empty_todo_list_template.id})
+        admin_url = reverse(
+            self.template_admin_name,
+            kwargs={'object_id': self.empty_todo_list_template.id})
+
+        response = self.request_client.get(import_url)
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(
+            response,
+            'orchestra/import_todo_list_template_from_spreadsheet.html')
+        self.assertEqual(mock_get_spreadsheet.call_count, 0)
+
+        # Before import, the empty_todo_list_template should have no
+        # template to-dos. After import, it should have the same
+        # to-dos as full_todo_list_template (the CSV we load from is
+        # equivalent to full_todo_list_template's to-dos).
+        self.empty_todo_list_template.refresh_from_db()
+        self.assertEqual(self.empty_todo_list_template.todos, {})
+        response = self.request_client.post(
+            import_url,
+            {'spreadsheet_url': 'https://the-spreadsheet.com/url'})
+        self.assertRedirects(
+            response, admin_url,
+            target_status_code=403)  # User doesn't have model access.
+        self.assertEqual(mock_get_spreadsheet.call_count, 1)
+        self.assertEqual(mock_get_spreadsheet.call_args[0][0],
+                         'https://the-spreadsheet.com/url')
+        self.empty_todo_list_template.refresh_from_db()
+
+        # Walk the todo tree, moving IDs (which won't be equal, but
+        # should be unique) into a set. Ensure the rest of the fields
+        # are equivalent after setting missing `skip_id`/`remove_if`
+        # to `[]`.
+        def recursively_pop_ids(todos, id_set):
+            id = todos.pop('id', None)
+            if id is not None:
+                id_set.add(id)
+            todos.setdefault('remove_if', [])
+            todos.setdefault('skip_if', [])
+            for item in todos.get('items', []):
+                recursively_pop_ids(item, id_set)
+        empty_ids = set()
+        full_ids = set()
+        empty_todos = copy.deepcopy(self.empty_todo_list_template.todos)
+        full_todos = copy.deepcopy(self.full_todo_list_template.todos)
+        recursively_pop_ids(empty_todos, empty_ids)
+        recursively_pop_ids(full_todos, full_ids)
+        self.assertEqual(len(empty_ids), 7)
+        self.assertEqual(len(empty_ids), len(full_ids))
+        self.assertEqual(empty_todos, full_todos)
