@@ -733,7 +733,7 @@ class TodoListTemplatesImportExportTests(EndpointTestCase):
             '{} -'.format(self.full_todo_list_template.name))
         with open(mock_upload.call_args[0][1].name, 'r') as exported_file:
             lines = ''.join(exported_file.readlines())
-            # The JSON encoding of properties is indeterministic in order.
+            # The JSON encoding of properties is nondeterministic in order.
             lines = lines.replace(
                 '"[{""prop"": {""operator"": ""=="", ""value"": true}}]"',
                 'PROPREPLACED')
@@ -863,7 +863,6 @@ class TodoListTemplatesImportExportTests(EndpointTestCase):
         self.assertEqual(
             TodoListTemplateImportRecord.objects.all().count(),
             0)
-
 
     def _fake_get_spreadsheet(self, csv_text):
         def fake_get_spreadsheet(spreadsheet_url, reader):
