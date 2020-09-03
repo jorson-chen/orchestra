@@ -92,13 +92,18 @@ class ImportTodoListTemplateFromSpreadsheet(View):
     TEMPLATE = 'orchestra/import_todo_list_template_from_spreadsheet.html'
 
     def get(self, request, pk):
+        # Display a form with a spreadsheet URL for import.
         return render(
             request,
             self.TEMPLATE,
             {'form': ImportTodoListTemplateFromSpreadsheetForm(initial={})})
 
     def post(self, request, pk):
+        # Try to import the spreadsheet and redirect back to the admin
+        # entry for the imported TodoListTemplate. If we encounter an
+        # error, display the error on the form.
         form = ImportTodoListTemplateFromSpreadsheetForm(request.POST)
+        context = {'form': form}
         if form.is_valid():
             try:
                 todo_list_template = TodoListTemplate.objects.get(
@@ -111,12 +116,13 @@ class ImportTodoListTemplateFromSpreadsheet(View):
                     'admin:orchestra_todolisttemplate_change',
                     pk)
             except SpreadsheetImportError as e:
-                return render(
-                    request,
-                    self.TEMPLATE,
-                    {'form': form, 'import_error': str(e)})
+                context['import_error'] = str(e)
         else:
-            return HttpResponseBadRequest('Provide a spreadsheet')
+            context['import_error'] = 'Please provide a spreadsheet URL'
+        return render(
+            request,
+            self.TEMPLATE,
+            context)
 
 
 class TodoList(generics.ListCreateAPIView):

@@ -23,6 +23,9 @@ def _write_template_rows(writer, todo, depth):
          json.dumps(todo.get('skip_if', []))] +
         ([''] * depth) +
         [todo.get('description', '')])
+    # `reversed` iteration because the JSON-serialized order of
+    # children is the opposite of the top-to-bottom order in the
+    # spreadsheet.
     for child in reversed(todo.get('items', [])):
         _write_template_rows(writer, child, depth + 1)
 
@@ -43,6 +46,14 @@ def _upload_csv_to_google(spreadsheet_name, file):
 
 
 def export_to_spreadsheet(todo_list_template):
+    """
+    Recursively descend down the to-do tree of a `todo_list_template`
+    and add a row per to-do to a CSV, uploading it to a Google Sheet
+    when done. The first two columns of the sheet capture json-encoded
+    remove_if and skip_if logic. After that, the text in the `i`'th
+    column represents a to-do's title that is `i` levels nested in the
+    to-do tree.
+    """
     with NamedTemporaryFile(mode='w+', delete=False) as file:
         writer = csv.writer(file)
         writer.writerow([REMOVE_IF_HEADER, SKIP_IF_HEADER])
@@ -54,10 +65,21 @@ def export_to_spreadsheet(todo_list_template):
 
 
 def import_from_spreadsheet(todo_list_template, spreadsheet_url, request):
+    """Imports a Google Sheet at `spreadsheet_url` to
+    `todo_list_template.todos`.
+
+    For debugging/provenance purposes, creates a
+    TodoListTemplateImportRecord with the user, todo_list_template,
+    and spreadsheet URL behind the import.
+    """
     reader = get_google_spreadsheet_as_csv(spreadsheet_url, reader=csv.reader)
     header = next(reader)
     if header[:2] != [REMOVE_IF_HEADER, SKIP_IF_HEADER]:
         raise SpreadsheetImportError('Unexpected header: {}'.format(header))
+    # The `i`'th entry in parent_items is current list of child to-dos
+    # of the `i`-depth parent. We use this to determine which parent
+    # to add a child to when we read to-do in a row with lower
+    # indentation than its parent.
     parent_items = []
     todos = None
     for rowindex, row in enumerate(reader):
