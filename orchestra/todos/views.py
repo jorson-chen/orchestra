@@ -1,7 +1,6 @@
 import logging
 
 from django.contrib.admin.views.decorators import staff_member_required
-from django.http import HttpResponseBadRequest
 from django.shortcuts import redirect
 from django.shortcuts import render
 from django.utils.decorators import method_decorator
