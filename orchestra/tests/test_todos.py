@@ -784,7 +784,7 @@ class TodoListTemplatesImportExportTests(EndpointTestCase):
                          'https://the-spreadsheet.com/url')
         self.empty_todo_list_template.refresh_from_db()
 
-        # Walk the todo tree, moving IDs (which won't be equal, but
+        # Walk the to-do tree, moving IDs (which won't be equal, but
         # should be unique) into a set. Ensure the rest of the fields
         # are equivalent after setting missing `skip_id`/`remove_if`
         # to `[]`.
