@@ -12,6 +12,7 @@ from orchestra.models import Task
 from orchestra.models import Todo
 from orchestra.models import TodoQA
 from orchestra.models import TodoListTemplate
+from orchestra.models import TodoListTemplateImportRecord
 from orchestra.models import Worker
 from orchestra.project_api.serializers import TimeEntrySerializer
 from orchestra.tests.helpers import EndpointTestCase
@@ -26,7 +27,7 @@ from orchestra.todos.serializers import TodoListTemplateSerializer
 from orchestra.utils.load_json import load_encoded_json
 
 
-CSV_TEXT = """Remove if,Skip if
+GOOD_CSV_TEXT = """Remove if,Skip if
 [],[],the root
 [],[],,todo parent 1
 [],"[{""prop"": {""value"": true, ""operator"": ""==""}}]",,,todo child 1-1
@@ -34,6 +35,19 @@ CSV_TEXT = """Remove if,Skip if
 [],[],,,todo child 2-1
 [],[],,,,todo child 2-1-1
 [],[],,,todo child 2-2
+"""
+
+BAD_HEADER_CSV_TEXT = """,Remove if,Skip if
+[],[],the root
+"""
+
+TWO_ENTRIES_CSV_TEXT = """Remove if,Skip if
+[],[],the root,the second root
+"""
+
+INVALID_PARENT_CSV_TEXT = """Remove if,Skip if
+[],[],the root
+[],[],,,,,,an impossible child
 """
 
 
@@ -726,17 +740,15 @@ class TodoListTemplatesImportExportTests(EndpointTestCase):
             lines = lines.replace(
                 '"[{""prop"": {""value"": true, ""operator"": ""==""}}]"',
                 'PROPREPLACED')
-            correct_text = CSV_TEXT.replace(
+            correct_text = GOOD_CSV_TEXT.replace(
                 '"[{""prop"": {""value"": true, ""operator"": ""==""}}]"',
                 'PROPREPLACED')
             self.assertEqual(lines, correct_text)
 
     @patch('orchestra.todos.import_export.get_google_spreadsheet_as_csv')
     def test_import_spreadsheet(self, mock_get_spreadsheet):
-        def fake_get_spreadsheet(spreadsheet_url, reader):
-            return reader(
-                StringIO(CSV_TEXT), dialect=csv.excel)
-        mock_get_spreadsheet.side_effect = fake_get_spreadsheet
+        mock_get_spreadsheet.side_effect = self._fake_get_spreadsheet(
+            GOOD_CSV_TEXT)
 
         import_url = reverse(
             self.import_url_name,
@@ -758,6 +770,9 @@ class TodoListTemplatesImportExportTests(EndpointTestCase):
         # equivalent to full_todo_list_template's to-dos).
         self.empty_todo_list_template.refresh_from_db()
         self.assertEqual(self.empty_todo_list_template.todos, {})
+        self.assertEqual(
+            TodoListTemplateImportRecord.objects.all().count(),
+            0)
         response = self.request_client.post(
             import_url,
             {'spreadsheet_url': 'https://the-spreadsheet.com/url'})
@@ -790,3 +805,68 @@ class TodoListTemplatesImportExportTests(EndpointTestCase):
         self.assertEqual(len(empty_ids), 7)
         self.assertEqual(len(empty_ids), len(full_ids))
         self.assertEqual(empty_todos, full_todos)
+
+        self.assertEqual(
+            TodoListTemplateImportRecord.objects.all().count(),
+            1)
+        import_record = TodoListTemplateImportRecord.objects.first()
+        self.assertEqual(import_record.todo_list_template.id,
+                         self.empty_todo_list_template.id)
+        self.assertEqual(import_record.importer.id,
+                         self.worker.user.id)
+        self.assertEqual(import_record.import_url,
+                         'https://the-spreadsheet.com/url')
+
+    @patch('orchestra.todos.import_export.get_google_spreadsheet_as_csv')
+    def test_import_spreadsheet_errors(self, mock_get_spreadsheet):
+        import_url = reverse(
+            self.import_url_name,
+            kwargs={'pk': self.empty_todo_list_template.id})
+
+        mock_get_spreadsheet.side_effect = self._fake_get_spreadsheet(
+            BAD_HEADER_CSV_TEXT)
+        response = self.request_client.post(
+            import_url,
+            {'spreadsheet_url': 'https://the-spreadsheet.com/url'})
+        self.assertEqual(response.status_code, 200)  # We didn't redirect.
+        self.assertEqual(mock_get_spreadsheet.call_count, 1)
+        self.assertRegex(response.content.decode('utf-8'),
+                         'Error: Unexpected header:')
+        mock_get_spreadsheet.reset_mock()
+
+        mock_get_spreadsheet.side_effect = self._fake_get_spreadsheet(
+            TWO_ENTRIES_CSV_TEXT)
+        response = self.request_client.post(
+            import_url,
+            {'spreadsheet_url': 'https://the-spreadsheet.com/url'})
+        self.assertEqual(response.status_code, 200)  # We didn't redirect.
+        self.assertEqual(mock_get_spreadsheet.call_count, 1)
+        self.assertRegex(response.content.decode('utf-8'),
+                         'Error: More than one text entry in row 0: ')
+        mock_get_spreadsheet.reset_mock()
+
+        mock_get_spreadsheet.side_effect = self._fake_get_spreadsheet(
+            INVALID_PARENT_CSV_TEXT)
+        response = self.request_client.post(
+            import_url,
+            {'spreadsheet_url': 'https://the-spreadsheet.com/url'})
+        self.assertEqual(response.status_code, 200)  # We didn't redirect.
+        self.assertEqual(mock_get_spreadsheet.call_count, 1)
+        self.assertRegex(response.content.decode('utf-8'),
+                         'Error: Row 1 is not a child of a previous row: ')
+        mock_get_spreadsheet.reset_mock()
+
+        # Nothing should have been created/updated since every import
+        # failed.
+        self.empty_todo_list_template.refresh_from_db()
+        self.assertEqual(self.empty_todo_list_template.todos, {})
+        self.assertEqual(
+            TodoListTemplateImportRecord.objects.all().count(),
+            0)
+
+
+    def _fake_get_spreadsheet(self, csv_text):
+        def fake_get_spreadsheet(spreadsheet_url, reader):
+            return reader(
+                StringIO(csv_text), dialect=csv.excel)
+        return fake_get_spreadsheet
