@@ -16,6 +16,7 @@ from orchestra.models import TodoListTemplateImportRecord
 from orchestra.models import Worker
 from orchestra.project_api.serializers import TimeEntrySerializer
 from orchestra.tests.helpers import EndpointTestCase
+from orchestra.tests.helpers import OrchestraTransactionTestCase
 from orchestra.tests.helpers.fixtures import TaskFactory
 from orchestra.tests.helpers.fixtures import TodoFactory
 from orchestra.tests.helpers.fixtures import TodoQAFactory
@@ -633,7 +634,7 @@ class TodoTemplateEndpointTests(EndpointTestCase):
             self._verify_todo_content(todo, expected_todo)
 
 
-class TodoListTemplatesImportExportTests(EndpointTestCase):
+class TodoListTemplatesImportExportTests(OrchestraTransactionTestCase):
 
     def setUp(self):
         super().setUp()
