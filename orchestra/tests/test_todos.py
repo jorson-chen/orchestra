@@ -714,16 +714,16 @@ class TodoListTemplatesImportExportTests(OrchestraTransactionTestCase):
         self.import_url_name = (
             'orchestra:todos:import_todo_list_template_from_spreadsheet')
         self.template_admin_name = 'admin:orchestra_todolisttemplate_change'
-        # Object actions don't appear to have a `reverse` pattern, so
-        # we explicitly spell out the URL.
-        self.export_url_pattern = (
-            '/vip/orchestra/todolisttemplate/{}/actions/export_spreadsheet/')
+        self.export_url_name = 'admin:orchestra_todolisttemplate_actions'
 
     @patch('orchestra.todos.import_export._upload_csv_to_google')
     def test_export_spreadsheet(self, mock_upload):
         mock_upload.return_value = 'https://redirect.com/the_spreadsheet'
-        response = self.request_client.get(
-            self.export_url_pattern.format(self.full_todo_list_template.id))
+        export_url = reverse(
+            self.export_url_name,
+            kwargs={'pk': self.full_todo_list_template.id,
+                    'tool': 'export_spreadsheet'})
+        response = self.request_client.get(export_url)
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response.url, 'https://redirect.com/the_spreadsheet')
         self.assertEqual(mock_upload.call_count, 1)
