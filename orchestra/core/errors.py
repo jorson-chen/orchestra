@@ -74,5 +74,5 @@ class ProjectStatusError(Exception):
     pass
 
 
-class SpreadsheetImportError(Exception):
+class TodoListTemplateValidationError(Exception):
     pass

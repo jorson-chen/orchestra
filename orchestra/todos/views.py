@@ -10,7 +10,7 @@ from rest_framework import permissions
 from rest_framework.response import Response
 from jsonview.exceptions import BadRequest
 
-from orchestra.core.errors import SpreadsheetImportError
+from orchestra.core.errors import TodoListTemplateValidationError
 from orchestra.models import Task
 from orchestra.models import Todo
 from orchestra.models import TodoQA
@@ -114,7 +114,7 @@ class ImportTodoListTemplateFromSpreadsheet(View):
                 return redirect(
                     'admin:orchestra_todolisttemplate_change',
                     pk)
-            except SpreadsheetImportError as e:
+            except TodoListTemplateValidationError as e:
                 context['import_error'] = str(e)
         else:
             context['import_error'] = 'Please provide a spreadsheet URL'

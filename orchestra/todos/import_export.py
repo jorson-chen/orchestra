@@ -6,7 +6,7 @@ from django.db import transaction
 from django.utils import timezone
 from tempfile import NamedTemporaryFile
 
-from orchestra.core.errors import SpreadsheetImportError
+from orchestra.core.errors import TodoListTemplateValidationError
 from orchestra.google_apps.permissions import write_with_link_permission
 from orchestra.google_apps.service import Service
 from orchestra.google_apps.convenience import get_google_spreadsheet_as_csv
@@ -75,7 +75,8 @@ def import_from_spreadsheet(todo_list_template, spreadsheet_url, request):
     reader = get_google_spreadsheet_as_csv(spreadsheet_url, reader=csv.reader)
     header = next(reader)
     if header[:2] != [REMOVE_IF_HEADER, SKIP_IF_HEADER]:
-        raise SpreadsheetImportError('Unexpected header: {}'.format(header))
+        raise TodoListTemplateValidationError(
+            'Unexpected header: {}'.format(header))
     # The `i`'th entry in parent_items is current list of child to-dos
     # of the `i`-depth parent. We use this to determine which parent
     # to add a child to when we read to-do in a row with lower
@@ -95,7 +96,7 @@ def import_from_spreadsheet(todo_list_template, spreadsheet_url, request):
         if len(nonempty_columns) == 0:
             continue
         elif len(nonempty_columns) > 1:
-            raise SpreadsheetImportError(
+            raise TodoListTemplateValidationError(
                 'More than one text entry in row {}: {}'.format(
                     rowindex, row))
 
@@ -108,7 +109,7 @@ def import_from_spreadsheet(todo_list_template, spreadsheet_url, request):
             parent_items = parent_items[:nonempty_index]
             parent_items[-1].insert(0, item)
         else:
-            raise SpreadsheetImportError(
+            raise TodoListTemplateValidationError(
                 'Row {} is not a child of a previous row: {}'.format(
                     rowindex, row))
         parent_items.append(item['items'])
