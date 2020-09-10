@@ -3,18 +3,13 @@
 {% load admin_static %}
 {% load admin_urls %}
 
-{% block extrastyle %}
-<link rel="stylesheet" href="{% static 'admin/css/forms.css' %}">
-{% include "admin/inc/extrastyle.html" %}
-{% endblock %}
-
 {% block content %}
 <div id="content-main">
     <h1>Import todo list template from a Google Sheet</h1>
 
-    <form action="{{request.path}}" method="post" id="churn_form">
+    <form action="{{request.path}}" method="post">
         {% csrf_token %}
-        <div id="form_{{ form.form_id }}" class="churn-form">
+        <div id="form_{{ form.form_id }}">
           {% for field in form %}
           <div class="aligned">
             <div class="form-row" id="{{ field.id_for_label }}_row">
@@ -22,8 +17,6 @@
                 <span>{{ field.label_tag }}</span>
                 <div class="field">
                   {{ field }}
-                  <wbr>
-                  <div class="help-text">{{ field.help_text }}</div>
                   {% for err in field.errors %}
                   <span class="error_message">{{ err }}</span>
                   {% endfor %}
@@ -35,7 +28,7 @@
         </div>
 
         {% if import_error %}
-        <div class="error_message">
+        <div class="error_message" style="color: red; margin-bottom: 10px;">
           Error: {{ import_error }}
         </div>
         {% endif %}
