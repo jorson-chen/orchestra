@@ -231,7 +231,9 @@ def upload_file(parent_id, file_path, title, description, mimetype):
 
 def get_google_spreadsheet_as_csv(gdoc_url, reader=csv.DictReader):
     matches = GSPREAD_RE.match(gdoc_url)
-    assert matches is not None
+    if matches is None:
+        raise ValueError(
+            '{} is not a valid Google Sheets URL'.format(gdoc_url))
     export_url = GSPREAD_EXPORT_URL.format(matches.group(1))
     response = requests.get(export_url)
     return reader(

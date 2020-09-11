@@ -638,6 +638,9 @@ class TodoListTemplateImportRecord(
             Django user that imported the template
         import_url (str):
             The URL of the imported template
+
+    By way of `BaseModel`, this model also has `created_at`
+    (essentially, when did the user import?) and `is_deleted`.
     """
     class Meta:
         app_label = 'orchestra'

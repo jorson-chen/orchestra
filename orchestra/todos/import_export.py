@@ -72,7 +72,11 @@ def import_from_spreadsheet(todo_list_template, spreadsheet_url, request):
     TodoListTemplateImportRecord with the user, todo_list_template,
     and spreadsheet URL behind the import.
     """
-    reader = get_google_spreadsheet_as_csv(spreadsheet_url, reader=csv.reader)
+    try:
+        reader = get_google_spreadsheet_as_csv(
+            spreadsheet_url, reader=csv.reader)
+    except ValueError as e:
+        raise TodoListTemplateValidationError(e)
     header = next(reader)
     if header[:2] != [REMOVE_IF_HEADER, SKIP_IF_HEADER]:
         raise TodoListTemplateValidationError(
