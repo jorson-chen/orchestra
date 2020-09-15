@@ -18,6 +18,12 @@ SKIP_IF_HEADER = 'Skip if'
 
 
 def _write_template_rows(writer, todo, depth):
+    """Recursively emits the rows of a to-do list template to the
+    CSV `writer`. The format of each row is described in
+    `export_to_spreadsheet` below. The `depth` of this row
+    dictates the number of empty cells by which to indent
+    this row's description.
+    """
     writer.writerow(
         [json.dumps(todo.get('remove_if', [])),
          json.dumps(todo.get('skip_if', []))] +
