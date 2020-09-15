@@ -1,5 +1,6 @@
 import logging
 
+from django.contrib import messages
 from django.contrib.admin.views.decorators import staff_member_required
 from django.shortcuts import redirect
 from django.shortcuts import render
@@ -111,6 +112,8 @@ class ImportTodoListTemplateFromSpreadsheet(View):
                     todo_list_template,
                     form.cleaned_data['spreadsheet_url'],
                     request)
+                messages.info(
+                    request, 'Successfully imported from spreadsheet.')
                 return redirect(
                     'admin:orchestra_todolisttemplate_change',
                     pk)
