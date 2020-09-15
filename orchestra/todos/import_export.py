@@ -48,7 +48,7 @@ def _upload_csv_to_google(spreadsheet_name, file):
         file.name
     )
     service.add_permission(sheet['id'], write_with_link_permission)
-    return 'https://docs.google.com/spreadsheets/d/{}'.format(sheet['id'])
+    return sheet['alternateLink']
 
 
 def export_to_spreadsheet(todo_list_template):
