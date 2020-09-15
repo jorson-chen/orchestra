@@ -22,34 +22,16 @@ from orchestra.tests.helpers.fixtures import TodoFactory
 from orchestra.tests.helpers.fixtures import TodoQAFactory
 from orchestra.tests.helpers.fixtures import TodoListTemplateFactory
 from orchestra.tests.helpers.fixtures import setup_models
+from orchestra.tests.helpers.fixtures import TODO_TEMPLATE_BAD_HEADER_CSV_TEXT
+from orchestra.tests.helpers.fixtures import TODO_TEMPLATE_GOOD_CSV_TEXT
+from orchestra.tests.helpers.fixtures import (
+    TODO_TEMPLATE_INVALID_PARENT_CSV_TEXT)
+from orchestra.tests.helpers.fixtures import TODO_TEMPLATE_NESTED_TODOS
+from orchestra.tests.helpers.fixtures import TODO_TEMPLATE_TWO_ENTRIES_CSV_TEXT
 from orchestra.todos.serializers import TodoSerializer
 from orchestra.todos.serializers import TodoQASerializer
 from orchestra.todos.serializers import TodoListTemplateSerializer
 from orchestra.utils.load_json import load_encoded_json
-
-
-GOOD_CSV_TEXT = """Remove if,Skip if
-[],[],the root
-[],[],,todo parent 1
-[],"[{""prop"": {""value"": true, ""operator"": ""==""}}]",,,todo child 1-1
-"[{""prop"": {""value"": true, ""operator"": ""==""}}]",[],,todo parent 2
-[],[],,,todo child 2-1
-[],[],,,,todo child 2-1-1
-[],[],,,todo child 2-2
-"""
-
-BAD_HEADER_CSV_TEXT = """,Remove if,Skip if
-[],[],the root
-"""
-
-TWO_ENTRIES_CSV_TEXT = """Remove if,Skip if
-[],[],the root,the second root
-"""
-
-INVALID_PARENT_CSV_TEXT = """Remove if,Skip if
-[],[],the root
-[],[],,,,,,an impossible child
-"""
 
 
 def _todo_data(task, title, completed,
@@ -652,53 +634,7 @@ class TodoListTemplatesImportExportTests(OrchestraTransactionTestCase):
                 'path': 'orchestra.tests.test_todos'
                         '._get_test_conditional_props'
             },
-            todos={
-                'description': 'the root',
-                'id': 0,
-                'items': [
-                    {
-                        'id': 2,
-                        'description': 'todo parent 2',
-                        'items': [
-                            {
-                                'id': 22,
-                                'description': 'todo child 2-2',
-                                'items': []
-                            },
-                            {
-                                'id': 21,
-                                'description': 'todo child 2-1',
-                                'items': [
-                                    {
-                                        'id': 211,
-                                        'description': 'todo child 2-1-1',
-                                        'items': []
-                                    }
-                                ]
-                            }
-                        ],
-                        'remove_if': [{
-                            'prop': {
-                                'operator': '==',
-                                'value': True
-                            }
-                        }]
-                    },
-                    {
-                        'id': 1,
-                        'description': 'todo parent 1',
-                        'items': [{
-                            'id': 11,
-                            'description': 'todo child 1-1',
-                            'items': [],
-                            'skip_if': [{
-                                'prop': {
-                                    'operator': '==',
-                                    'value': True
-                                }
-                            }]
-                        }]
-                    }]},
+            todos=TODO_TEMPLATE_NESTED_TODOS
         )
         self.empty_todo_list_template = TodoListTemplateFactory(
             slug='empty-template-slug',
@@ -741,7 +677,7 @@ class TodoListTemplatesImportExportTests(OrchestraTransactionTestCase):
             lines = lines.replace(
                 '"[{""prop"": {""value"": true, ""operator"": ""==""}}]"',
                 'PROPREPLACED')
-            correct_text = GOOD_CSV_TEXT.replace(
+            correct_text = TODO_TEMPLATE_GOOD_CSV_TEXT.replace(
                 '"[{""prop"": {""value"": true, ""operator"": ""==""}}]"',
                 'PROPREPLACED')
             self.assertEqual(lines, correct_text)
@@ -749,7 +685,7 @@ class TodoListTemplatesImportExportTests(OrchestraTransactionTestCase):
     @patch('orchestra.todos.import_export.get_google_spreadsheet_as_csv')
     def test_import_spreadsheet(self, mock_get_spreadsheet):
         mock_get_spreadsheet.side_effect = self._fake_get_spreadsheet(
-            GOOD_CSV_TEXT)
+            TODO_TEMPLATE_GOOD_CSV_TEXT)
 
         import_url = reverse(
             self.import_url_name,
@@ -825,7 +761,7 @@ class TodoListTemplatesImportExportTests(OrchestraTransactionTestCase):
             kwargs={'pk': self.empty_todo_list_template.id})
 
         mock_get_spreadsheet.side_effect = self._fake_get_spreadsheet(
-            BAD_HEADER_CSV_TEXT)
+            TODO_TEMPLATE_BAD_HEADER_CSV_TEXT)
         response = self.request_client.post(
             import_url,
             {'spreadsheet_url': 'https://the-spreadsheet.com/url'})
@@ -836,7 +772,7 @@ class TodoListTemplatesImportExportTests(OrchestraTransactionTestCase):
         mock_get_spreadsheet.reset_mock()
 
         mock_get_spreadsheet.side_effect = self._fake_get_spreadsheet(
-            TWO_ENTRIES_CSV_TEXT)
+            TODO_TEMPLATE_TWO_ENTRIES_CSV_TEXT)
         response = self.request_client.post(
             import_url,
             {'spreadsheet_url': 'https://the-spreadsheet.com/url'})
@@ -847,7 +783,7 @@ class TodoListTemplatesImportExportTests(OrchestraTransactionTestCase):
         mock_get_spreadsheet.reset_mock()
 
         mock_get_spreadsheet.side_effect = self._fake_get_spreadsheet(
-            INVALID_PARENT_CSV_TEXT)
+            TODO_TEMPLATE_INVALID_PARENT_CSV_TEXT)
         response = self.request_client.post(
             import_url,
             {'spreadsheet_url': 'https://the-spreadsheet.com/url'})
