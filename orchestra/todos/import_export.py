@@ -110,18 +110,35 @@ def import_from_spreadsheet(todo_list_template, spreadsheet_url, request):
                 'More than one text entry in row {}: {}'.format(
                     rowindex, row))
 
+        # `nonempty_index` is the depth of the column that contains
+        # text in this row. We use that depth to determine which to-do
+        # this is a child of.
         nonempty_index = nonempty_columns[0][0]
         item['description'] = nonempty_columns[0][1]
 
         if todos is None:
+            # If todos has not yet been defined, `item` is the root.
             todos = item
         elif nonempty_index <= len(parent_items):
+            # If the depth of the row is at most one larger than its
+            # parent's depth, we can look at `parent_items` to
+            # determine its parent. We truncate any parent_items entry
+            # that's deeper than this item, as it is no longer
+            # possible for deeper items to be parents of subsequent rows.
             parent_items = parent_items[:nonempty_index]
+            # Insert this item into its parent's list of children.
+            # Because child ordering is reversed in our
+            # serialization format, insert it at the beginning of the
+            # list of children.
             parent_items[-1].insert(0, item)
         else:
+            # You can't be deeper than one column past the previous
+            # row's depth.
             raise TodoListTemplateValidationError(
-                'Row {} is not a child of a previous row: {}'.format(
+                'Row {} has skipped some columns in depth: {}'.format(
                     rowindex, row))
+        # Add this item's child list to the end of the list of
+        # parents, in case it ends up with children in subsequent rows.
         parent_items.append(item['items'])
 
     todo_list_template.todos = todos

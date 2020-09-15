@@ -790,7 +790,7 @@ class TodoListTemplatesImportExportTests(OrchestraTransactionTestCase):
         self.assertEqual(response.status_code, 200)  # We didn't redirect.
         self.assertEqual(mock_get_spreadsheet.call_count, 1)
         self.assertRegex(response.content.decode('utf-8'),
-                         'Error: Row 1 is not a child of a previous row: ')
+                         'Error: Row 1 has skipped some columns in depth: ')
         mock_get_spreadsheet.reset_mock()
 
         # Nothing should have been created/updated since every import
